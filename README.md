@@ -26,3 +26,10 @@ image_datasets.oslomini.download()
 ```
 
 though they'll be nested a bit.
+
+![](myexplorer.png)
+
+_It works! Although the generated images are crap because I didn't run the training for long enough._
+
+
+memo to self - conda activate lscope_tf217
