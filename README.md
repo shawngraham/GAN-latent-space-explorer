@@ -14,6 +14,8 @@ This is my version.
 3. use requirements.txt to install everything you need
 4. drop the saved generator_model_final.keras file into this same folder on your machine
 5. make sure your training images are also in this folder in a 'training_images' subfolder
+6. python app.py
+7. open browser at http://127.0.0.1:5000/ . Click on the points of the diamond to select the images. Then, when you move the mouse in the area between them, you will see an image from the latent space between those points.
 
 For my intial experiments, I used the oslomini image dataset. These can be retrieved with:
 
