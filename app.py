@@ -8,26 +8,20 @@ import os
 
 app = Flask(__name__)
 
-# Global variables for model and training images
+# Global variables
 generator = None
 training_images = []
 latent_vectors = []
 NOISE_DIM = 100
-selected_image_index = None # keep track of selected image
-
+corner_vectors = {'top': None, 'right': None, 'bottom': None, 'left': None}
 
 def load_model_and_images(model_path, image_folder):
     """Load the trained generator and training images"""
     global generator, training_images, latent_vectors
-
-    # Load the generator, accounting for custom objects
-    def custom_object_scope(path):
-        def load_model():
-            return tf.keras.models.load_model(path)
-        return load_model
-
-    with tf.keras.utils.CustomObjectScope({'load_model': custom_object_scope(model_path)}):
-        generator = tf.keras.models.load_model(model_path)
+    
+    # Load the generator
+    generator = tf.keras.models.load_model(model_path)
+    
     # Load and store training images
     training_images = []
     for filename in os.listdir(image_folder):
@@ -43,15 +37,14 @@ def load_model_and_images(model_path, image_folder):
 
 def generate_interpolated_image(weights):
     """Generate an image from interpolated latent vectors"""
-    global selected_image_index
-    if selected_image_index is None:
+    # Check if all corner vectors are selected
+    if any(v is None for v in corner_vectors.values()):
         return None
     
-    # Combine latent vectors based on weights
+    # Create weighted sum of latent vectors
     combined_vector = tf.zeros([1, NOISE_DIM])
-    for i, weight in enumerate(weights):
-        if weight > 0:
-            combined_vector += weight * latent_vectors[i]
+    for corner, weight in zip(corner_vectors.values(), weights):
+        combined_vector += weight * corner
     
     # Generate image
     generated = generator(combined_vector, training=False)
@@ -90,15 +83,18 @@ def generate():
     weights = request.json['weights']
     img_str = generate_interpolated_image(weights)
     if img_str is None:
-        return jsonify({'message': 'Select a starting image from corners'})
+        return jsonify({'message': 'Please select images for all corners'})
     return jsonify({'image': img_str})
-    
+
 @app.route('/api/select-image/<int:index>')
 def select_image(index):
-    """Set the selected image index."""
-    global selected_image_index
+    """Set the selected image for a corner position"""
+    position = request.args.get('position')
+    if position not in corner_vectors:
+        return jsonify({'error': 'Invalid position'})
+    
     if 0 <= index < len(training_images):
-        selected_image_index = index
+        corner_vectors[position] = latent_vectors[index]
         return jsonify({'message': 'Image selected', 'index': index})
     else:
         return jsonify({'error': 'Invalid image index'})
@@ -106,7 +102,7 @@ def select_image(index):
 if __name__ == '__main__':
     # Load model and images before starting server
     load_model_and_images(
-        model_path='generator_model_final.keras', # the name of your keras file
-        image_folder='training_images'  # Path to your training images
+        model_path='generator_model_final.keras',
+        image_folder='downloaded_images'
     )
     app.run(debug=True)
