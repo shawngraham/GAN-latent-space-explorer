@@ -31,5 +31,10 @@ though they'll be nested a bit.
 
 _It works! Although the generated images are crap because I didn't run the training for long enough._
 
+for a different dataset, here's 600 pics from palp.art:
+
+```wget https://github.com/shawngraham/pompeii/raw/refs/heads/main/downloaded_images.zip```
+
+check app.py to make sure using this folder. The model file in this repo was trained for 1000 iterations. The model training code, such as it is, is on [colab](https://colab.research.google.com/drive/1zjaAUJ2YIvM655XBGe0Dc9Uh8TH64V-G?usp=sharing). It'd probably be better to use something dcgan but hey, all this is an experiment.
 
 memo to self - conda activate lscope_tf217
