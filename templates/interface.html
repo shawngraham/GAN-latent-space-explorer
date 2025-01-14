@@ -28,7 +28,7 @@
             margin: 0 auto;
         }
         .corner-image-container {
-          position: absolute;
+            position: absolute;
         }
         .corner-image {
             width: 100px;
@@ -40,14 +40,6 @@
         .corner-image:hover {
             transform: scale(1.1);
         }
-         .corner-image-container > input[type='file']{
-             opacity: 0;
-             width: 100px;
-             height: 100px;
-             position: absolute;
-             top:0;
-             left:0;
-         }
         #generated-container {
             position: fixed;
             top: 20px;
@@ -80,34 +72,76 @@
             width: 100%;
             height: 100%;
         }
+        .image-picker-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        .image-picker-content {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 80%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .training-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            padding: 10px;
+        }
+        .training-image {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .training-image:hover {
+            border-color: #333;
+        }
     </style>
 </head>
 <body>
     <div id="container">
-        <p align=center>Click on the points of the diamond to select the images.<br> Then, when you move the mouse in the area between them, you will see an image from the latent space between those points.</p>
+        <p align=center>Click on any corner image to select a different training image.<br>
+            Then, move your mouse within the diamond to see interpolated results.</p>
         <div id="star-container">
             <canvas id="canvas"></canvas>
             <div class="corner-image-container" style="top: 0; left: 250px;">
-               <input type="file" id="top-image-input" accept="image/*" class="corner-image-input">
-               <img class="corner-image" id="top" src="/api/placeholder/100/100" alt="Top Image">
+                <img class="corner-image" id="top" src="/api/placeholder/100/100" alt="Top Image">
             </div>
             <div class="corner-image-container" style="top: 250px; right: 0;">
-                <input type="file" id="right-image-input" accept="image/*" class="corner-image-input">
-               <img class="corner-image" id="right" src="/api/placeholder/100/100" alt="Right Image">
+                <img class="corner-image" id="right" src="/api/placeholder/100/100" alt="Right Image">
             </div>
             <div class="corner-image-container" style="bottom: 0; left: 250px;">
-                <input type="file" id="bottom-image-input" accept="image/*" class="corner-image-input">
-               <img class="corner-image" id="bottom" src="/api/placeholder/100/100" alt="Bottom Image">
+                <img class="corner-image" id="bottom" src="/api/placeholder/100/100" alt="Bottom Image">
             </div>
             <div class="corner-image-container" style="top: 250px; left: 0;">
-                 <input type="file" id="left-image-input" accept="image/*" class="corner-image-input">
-               <img class="corner-image" id="left" src="/api/placeholder/100/100" alt="Left Image">
+                <img class="corner-image" id="left" src="/api/placeholder/100/100" alt="Left Image">
             </div>
             <div id="interpolation-point"></div>
         </div>
     </div>
     <div id="generated-container">
         <img id="generated-image" src="/api/placeholder/300/300" alt="Generated Image">
+    </div>
+
+    <div id="image-picker-modal" class="image-picker-modal">
+        <div class="image-picker-content">
+            <h3>Select an image</h3>
+            <div id="training-images-grid" class="training-images-grid"></div>
+        </div>
     </div>
 
     <script>
@@ -119,6 +153,8 @@
         
         const cornerImages = ['top', 'right', 'bottom', 'left'];
         let cornerIndex = {};
+        let currentCorner = null;
+        let trainingImages = [];
 
         // Set canvas size
         canvas.width = starContainer.offsetWidth;
@@ -147,11 +183,9 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            // Check if point is inside star shape
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             
-            // Simple star boundary check (can be improved for more precise star shape)
             const dx = x - centerX;
             const dy = y - centerY;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -160,7 +194,6 @@
                 interpolationPoint.style.left = x + 'px';
                 interpolationPoint.style.top = y + 'px';
                 
-                // Calculate weights based on position
                 const weights = calculateWeights(x, y, centerX, centerY);
                 updateGeneratedImage(weights);
             }
@@ -171,11 +204,9 @@
             const dx = (x - centerX) / 250; // Normalize to [-1, 1]
             const dy = (y - centerY) / 250;
             
-            // Convert to polar coordinates
             const distance = Math.sqrt(dx * dx + dy * dy);
             const angle = Math.atan2(dy, dx);
             
-            // Calculate weights for each corner
             const weights = {
                 top: 0,
                 right: 0,
@@ -183,12 +214,10 @@
                 left: 0
             };
             
-            // Distribute weights based on angle and distance
             const normalizedAngle = ((angle + Math.PI) / (2 * Math.PI) + 0.125) % 1;
             const section = Math.floor(normalizedAngle * 4);
             const sectionProgress = (normalizedAngle * 4) % 1;
             
-            // Interpolate between corners
             switch(section) {
                 case 0: // Top to right
                     weights.top = 1 - sectionProgress;
@@ -208,8 +237,6 @@
                     break;
             }
             
-            // Adjust weights based on distance from center
-            const centerWeight = 1 - distance;
             Object.keys(weights).forEach(key => {
                 weights[key] *= distance;
             });
@@ -217,42 +244,63 @@
             return weights;
         }
 
-         // Load training images when page loads
+        // Load training images
         async function loadTrainingImages() {
-             const response = await fetch('/api/training-images');
+            const response = await fetch('/api/training-images');
             trainingImages = await response.json();
-        
-           cornerImages.forEach((corner, i) => {
+            
+            // Create image grid
+            const grid = document.getElementById('training-images-grid');
+            trainingImages.forEach((imageData, index) => {
+                const img = document.createElement('img');
+                img.src = `data:image/png;base64,${imageData}`;
+                img.className = 'training-image';
+                img.onclick = () => selectTrainingImage(index);
+                grid.appendChild(img);
+            });
+
+            // Set initial random images for corners
+            cornerImages.forEach(corner => {
                 const randomIndex = Math.floor(Math.random() * trainingImages.length);
                 const imgElement = document.getElementById(corner);
                 imgElement.src = `data:image/png;base64,${trainingImages[randomIndex]}`;
                 cornerIndex[corner] = randomIndex;
-            
-            const inputElement = document.getElementById(corner + '-image-input')
-            
-               inputElement.addEventListener('change', function() {
-                    const file = this.files[0];
-                     if (file) {
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                           imgElement.src = e.target.result;
-
-                            // In practice, you would:
-                            // 1. Convert file to numpy image
-                            // 2. Make API call to select this vector
-                        }
-                        reader.readAsDataURL(file);
-                     }
-                })
-                
-               imgElement.addEventListener('click', function(){
-                   inputElement.click();
-               });
+                selectImage(randomIndex, corner);
             });
         }
-        
-        async function selectImage(index) {
-            const response = await fetch(`/api/select-image/${index}`);
+
+        // Set up corner image click handlers
+        cornerImages.forEach(corner => {
+            const imgElement = document.getElementById(corner);
+            imgElement.addEventListener('click', () => {
+                currentCorner = corner;
+                document.getElementById('image-picker-modal').style.display = 'block';
+            });
+        });
+
+        // Close modal when clicking outside
+        const modal = document.getElementById('image-picker-modal');
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // Handle training image selection
+        function selectTrainingImage(index) {
+            if (!currentCorner) return;
+            
+            const imgElement = document.getElementById(currentCorner);
+            imgElement.src = `data:image/png;base64,${trainingImages[index]}`;
+            cornerIndex[currentCorner] = index;
+            selectImage(index, currentCorner);
+            
+            modal.style.display = 'none';
+        }
+
+        // Update selected image
+        async function selectImage(index, position) {
+            const response = await fetch(`/api/select-image/${index}?position=${position}`);
             const data = await response.json();
             if(data.error) {
                 console.log(data.error);
@@ -269,18 +317,18 @@
                 body: JSON.stringify({ weights: Object.values(weights) }),
             });
             
-             try {
+            try {
                 const data = await response.json();
                 if(data.message) {
-                     console.log(data.message);
+                    console.log(data.message);
                     document.getElementById('generated-image').src = `/api/placeholder/300/300`;
-                     return
-                 }
+                    return;
+                }
                 document.getElementById('generated-image').src = 
                     `data:image/png;base64,${data.image}`;
             } catch(error) {
-                console.log("Error parsing response:", error)
-                 document.getElementById('generated-image').src = `/api/placeholder/300/300`;
+                console.log("Error parsing response:", error);
+                document.getElementById('generated-image').src = `/api/placeholder/300/300`;
             }
         }
 
